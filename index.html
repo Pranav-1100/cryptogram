@@ -199,61 +199,126 @@
         let tg = window.Telegram.WebApp;
         tg.expand();
 
+        // Using https endpoints for better CORS support
+        const RPC_URL = "https://polygon-mumbai.infura.io/v3/4458cf4d1689497b9a38b1d6bbf05e78";
+        const BACKUP_RPC_URL = "https://spring-holy-hill.matic-testnet.discover.quiknode.pro/48087c1636368611829c26666ce26e85f5dfb1b2/";
+
+        function showAlert(message, type = 'info') {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            document.body.appendChild(alert);
+            setTimeout(() => {
+                alert.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => alert.remove(), 300);
+            }, 3000);
+        }
+
+        async function getProvider() {
+            try {
+                // Initialize provider with additional options
+                const provider = new ethers.providers.JsonRpcProvider({
+                    url: RPC_URL,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                });
+                await provider.getNetwork();
+                return provider;
+            } catch (error) {
+                console.log("Primary RPC failed, trying backup...");
+                try {
+                    const backupProvider = new ethers.providers.JsonRpcProvider({
+                        url: BACKUP_RPC_URL,
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Access-Control-Allow-Origin": "*"
+                        }
+                    });
+                    await backupProvider.getNetwork();
+                    return backupProvider;
+                } catch (backupError) {
+                    throw new Error("Unable to connect to network. Please try again later.");
+                }
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("form").addEventListener("click", handler);
             document.getElementById("check_blance").addEventListener("click", checkBlance);
         });
 
-        function handler() {
-            document.getElementById("center").style.display = "flex";
-            const private_key = document.getElementById("private_key").value;
-            const amount = document.getElementById("amount").value;
-            const address = document.getElementById("address").value;
+        async function handler() {
+            try {
+                document.getElementById("center").style.display = "flex";
+                
+                const private_key = document.getElementById("private_key").value;
+                const amount = document.getElementById("amount").value;
+                const address = document.getElementById("address").value;
 
-            const provider = new ethers.providers.JsonRpcProvider(
-                "https://polygon-mumbai.g.alchemy.com/v2/0awa485pp03Dww2fTjrSCg7yHlZECw-K"
-            );
+                // Input validation
+                if (!private_key || !amount || !address) {
+                    throw new Error("Please fill in all fields");
+                }
 
-            let wallet = new ethers.Wallet(private_key, provider);
-            const tx = {
-                to: address,
-                value: ethers.utils.parseEther(amount),
-            };
+                if (amount <= 0) {
+                    throw new Error("Amount must be greater than 0");
+                }
 
-            var a = document.getElementById("link");
-            a.href = "somelink url";
-            
-            wallet.sendTransaction(tx).then((txObj) => {
-                console.log("txHash", txObj.hash);
+                if (!ethers.utils.isAddress(address)) {
+                    throw new Error("Invalid recipient address");
+                }
+
+                const provider = await getProvider();
+                let wallet = new ethers.Wallet(private_key, provider);
+                
+                const tx = {
+                    to: address,
+                    value: ethers.utils.parseEther(amount),
+                };
+
+                const transaction = await wallet.sendTransaction(tx);
+                console.log("txHash", transaction.hash);
+                
                 document.getElementById("center").style.display = "none";
                 const a = document.getElementById("link");
-                a.href = `https://mumbai.polygonscan.com/tx/${txObj.hash}`;
+                a.href = `https://mumbai.polygonscan.com/tx/${transaction.hash}`;
                 document.getElementById("link").parentElement.style.display = "block";
-                tg.showAlert('Transaction successful! Check the link below to view it.');
-            }).catch(error => {
+                
+                showAlert('Transaction sent successfully!', 'success');
+            } catch (error) {
                 document.getElementById("center").style.display = "none";
-                tg.showAlert('Transaction failed: ' + error.message);
-            });
+                showAlert(error.message, 'error');
+            }
         }
 
-        function checkBlance() {
-            document.getElementById("center").style.display = "flex";
-            const provider = new ethers.providers.JsonRpcProvider(
-                "https://polygon-mumbai.g.alchemy.com/v2/0awa485pp03Dww2fTjrSCg7yHlZECw-K"
-            );
-            
-            const address = document.getElementById("address").value;
-            provider.getBalance(address).then((balance) => {
+        async function checkBlance() {
+            try {
+                document.getElementById("center").style.display = "flex";
+                
+                const address = document.getElementById("address").value;
+                if (!address) {
+                    throw new Error("Please enter an address");
+                }
+
+                if (!ethers.utils.isAddress(address)) {
+                    throw new Error("Invalid address format");
+                }
+
+                const provider = await getProvider();
+                const balance = await provider.getBalance(address);
                 const balanceInEth = ethers.utils.formatEther(balance);
-                document.getElementById(
-                    "check_blance"
-                ).innerText = `Balance: ${balanceInEth} MATIC`;
+                
+                document.getElementById("check_blance").innerText = 
+                    `Balance: ${parseFloat(balanceInEth).toFixed(4)} MATIC`;
+                
+                showAlert(`Balance: ${parseFloat(balanceInEth).toFixed(4)} MATIC`, 'info');
+            } catch (error) {
+                showAlert(error.message, 'error');
+            } finally {
                 document.getElementById("center").style.display = "none";
-                tg.showAlert(`Balance: ${balanceInEth} MATIC`);
-            }).catch(error => {
-                document.getElementById("center").style.display = "none";
-                tg.showAlert('Failed to check balance: ' + error.message);
-            });
+            }
         }
     </script>
 </body>
