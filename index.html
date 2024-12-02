@@ -289,7 +289,15 @@
                 showAlert('Transaction sent successfully!', 'success');
             } catch (error) {
                 document.getElementById("center").style.display = "none";
-                showAlert(error.message, 'error');
+                let errorMessage = error.message;
+                if (errorMessage.includes("network")) {
+                    errorMessage = "Unable to connect to network. Please check your internet connection and try again.";
+                } else if (errorMessage.includes("invalid address")) {
+                    errorMessage = "Please enter a valid wallet address.";
+                } else if (errorMessage.includes("insufficient funds")) {
+                    errorMessage = "Insufficient funds for this transaction.";
+                }
+                showAlert(errorMessage, 'error');
             }
         }
 
